@@ -1,0 +1,28 @@
+# --- LaTeX: file intermedi di compilazione (si rigenerano dal .tex) ---
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+*.lot
+*.nav
+*.out
+*.run.xml
+*.snm
+*.synctex.gz
+*.synctex(busy)
+*.toc
+*.xdv
+
+# --- Python ---
+__pycache__/
+*.pyc
+
+# --- Editor / sistema operativo ---
+*~
+*.swp
+.DS_Store
+Thumbs.db
