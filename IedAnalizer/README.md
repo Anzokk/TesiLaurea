@@ -13,13 +13,12 @@ IED/
 │   ├── libiec61850/      link a libiec61850 installata (dipendenza esterna)
 │   └── python/           moduli Python condivisi (bench_io.py)
 ├── source/
-│   ├── mms/              client MMS in C (ParserMMSV2.c)
-│   ├── goose/            analizzatore GOOSE in Python (ParserGooseV2.py)
+│   ├── parser/           parser MMS + GOOSE in C (parser.c)
 │   ├── scl/              estrattore del modello SCL (scl_extract.py)
 │   └── legacy/           versioni precedenti, conservate per riferimento
 ├── config/
-│   ├── mms/              punti da leggere via MMS (MMSExpected*.json)
-│   ├── goose/            criteri di verifica GOOSE (GooseExpected.json)
+│   ├── parser/           configurazioni del parser: IED, interfaccia, punti MMS, GoCB
+│   ├── legacy/           configurazioni dei vecchi parser
 │   └── scl/              file SCL dell'IED (.icd)
 ├── data/
 │   ├── captures/         catture di rete (.pcapng)
@@ -33,8 +32,8 @@ IED/
 
 | Componente | Requisiti |
 |---|---|
-| Client MMS (C) | gcc, [libiec61850](https://github.com/mz-automation/libiec61850) compilata e installata |
-| Analizzatore GOOSE | Python ≥ 3.8, `tshark` (Wireshark), `pyshark` (`pip install pyshark`) |
+| Parser MMS + GOOSE (C) | gcc, [libiec61850](https://github.com/mz-automation/libiec61850) compilata e installata, cJSON (`sudo apt install libcjson-dev`) |
+| Cattura del traffico | `tshark` / `dumpcap` (Wireshark) |
 | Estrattore SCL | Python ≥ 3.8 (solo libreria standard) |
 
 Il link `lib/libiec61850` punta all'installazione locale della libreria
@@ -50,7 +49,7 @@ make IEC61850_DIR=/percorso/libiec61850/install
 ## Compilazione
 
 ```sh
-make          # compila bin/ParserMMSV2
+make          # compila bin/parser
 make check    # controlla la sintassi degli script Python
 make clean    # rimuove i file generati
 ```
@@ -58,25 +57,24 @@ make clean    # rimuove i file generati
 ## Utilizzo rapido
 
 ```sh
-# 1. Lettura dati MMS dall'IED
-bin/ParserMMSV2 <ip-ied> 102 config/mms/MMSExpectedV2.json data/results/mms.json
+# 1. Dal file SCL: modello dell'IED e configurazione del parser
+python3 source/scl/scl_extract.py config/scl/<ied>.icd -o data/results/scl \
+        --genera-config config
+#    (poi compilare "interface" in config/parser/<ied>.json)
 
-# 2. Cattura del traffico GOOSE (60 s)
-sudo tshark -i <interfaccia> -a duration:60 -w data/captures/scenario.pcapng
-
-# 3. Analisi GOOSE rispetto ai criteri attesi
-python3 source/goose/ParserGooseV2.py data/captures/scenario.pcapng \
-        config/goose/GooseExpected.json data/results/goose_report.json
-
-# 4. Estrazione del modello dal file SCL
-python3 source/scl/scl_extract.py config/scl/demo_old.icd -o data/results/scl
+# 2. Letture MMS + GOOSE ricevuti nello stesso intervallo -> JSON
+sudo bin/parser                              # usa config/parser/parser.json
+sudo bin/parser config/parser/<ied>.json
 ```
 
-Gli exit code permettono l'uso in script e pipeline: `ParserGooseV2.py` termina
-con 0 se tutti i check passano, 1 altrimenti.
+I comandi vanno lanciati dalla cartella `IedAnalizer`. Il parser non esegue
+verifiche: produce i dati grezzi in JSON, che vengono poi controllati dai test
+Robot Framework. Gli exit code (vedi [docs/parser.md](docs/parser.md))
+permettono di usarlo in script e pipeline.
 
 ## Documentazione
 
-- [docs/mms_client.md](docs/mms_client.md) – client MMS: configurazione e formato dell'output
-- [docs/goose_analyzer.md](docs/goose_analyzer.md) – analizzatore GOOSE: check eseguiti e criteri
+- [docs/libiec61850.md](docs/libiec61850.md) – la libreria libiec61850: architettura, API client, report, comandi, GOOSE
+- [docs/parser.md](docs/parser.md) – parser MMS + GOOSE: configurazione e formato dell'output
+- [docs/scl_extract.md](docs/scl_extract.md) – estrattore SCL e generazione delle configurazioni
 - [docs/acquisizione.md](docs/acquisizione.md) – procedura di cattura del traffico

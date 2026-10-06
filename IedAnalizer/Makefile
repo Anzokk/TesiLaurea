@@ -1,6 +1,6 @@
 # Makefile - banco di prova IEC 61850 BU9020
 #
-#   make            compila i tool C in bin/
+#   make            compila il parser in bin/parser
 #   make check      verifica la sintassi degli script Python
 #   make clean      rimuove i file generati
 #
@@ -13,16 +13,16 @@ CC      ?= gcc
 CFLAGS  ?= -O2 -g -Wall -Wextra
 CPPFLAGS += -I$(IEC61850_DIR)/include
 LDFLAGS  += -L$(IEC61850_DIR)/lib
-LDLIBS   += -liec61850 -lpthread
+LDLIBS   += -liec61850 -lcjson -lpthread
 
-BIN := bin/ParserMMSV2
-PY  := source/goose/ParserGooseV2.py source/scl/scl_extract.py lib/python/bench_io.py
+BIN := bin/parser
+PY  := $(wildcard source/scl/*.py lib/python/*.py)
 
 .PHONY: all check clean
 
 all: $(BIN)
 
-bin/ParserMMSV2: source/mms/ParserMMSV2.c | bin
+bin/parser: source/parser/parser.c | bin
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ $(LDFLAGS) $(LDLIBS)
 
 bin:

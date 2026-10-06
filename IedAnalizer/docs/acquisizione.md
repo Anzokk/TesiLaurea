@@ -15,5 +15,7 @@ Per limitare la cattura al solo traffico GOOSE si può aggiungere il filtro
 di cattura `-f "ether proto 0x88b8"`.
 
 Le catture vanno salvate in `data/captures/` con un nome che identifichi lo
-scenario (es. `sync_check_ok_2026-10-05.pcapng`) e analizzate con
-`source/goose/ParserGooseV2.py` (vedi [goose_analyzer.md](goose_analyzer.md)).
+scenario (es. `sync_check_ok_2026-10-05.pcapng`) e servono per l'analisi
+manuale in Wireshark. Per i test automatici i GOOSE vengono ricevuti
+direttamente da `bin/parser` (vedi [parser.md](parser.md)): la cattura con
+tshark non è necessaria.

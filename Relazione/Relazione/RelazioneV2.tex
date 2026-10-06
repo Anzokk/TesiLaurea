@@ -119,7 +119,7 @@ Il dispositivo oggetto della verifica è la BU9020, un'unità destinata ad appli
 %----------------------------------------------------------
 \section{Obiettivi del lavoro}
 %----------------------------------------------------------
-Il presente lavoro nasce dal tirocinio curricolare svolto presso Col Group, a Trofarello, nel periodo dal 28 settembre al 5 novembre 2026. \daf{breve descrizione dell'azienda e del reparto}
+Il presente lavoro nasce dal tirocinio curricolare svolto presso Col Group, a Trofarello, nel periodo dal 28 settembre al 5 novembre 2026. \daf{L'azienda è molto grande avendo molte sedi, e il loro lavoro si articola in molti ambiti. In particolare, avendo come clienti aziende come Enel e Terna, si occupano della produzione di soluzioni per le sottostazioni elettriche. Si occupano di creare nuove soluzioni agendo a livello elettronico, tramite un lavoro di rifinimento, modifiche sull'hardware, e lo sviluppo delle componenti software di base, creano i cassetti elettrici che monitorano e agiscono sulla corrente dei grandi impianti elettrici. Il reparto con cui mi sono interfacciato è quello di ricerca e sviluppo, concetrato sulla parte di omologazione del nuoci sistemi hardware e software.}
 
 L'obiettivo è progettare e realizzare un ambiente di test per gestire una scheda di segnali analogici e digitali e analizzare i flussi IEC~61850 generati o ricevuti dalla BU9020 durante scenari funzionali controllati. Il lavoro correla tre livelli:
 \begin{enumerate}
@@ -202,7 +202,6 @@ I campi del messaggio rilevanti per la verifica sono:
     \item \texttt{sqNum}: numero di sequenza, incrementato a ogni ritrasmissione con lo stesso \texttt{stNum} e riportato a zero quando \texttt{stNum} cambia;
     \item il contenuto del data set (\textit{payload} applicativo).
 \end{itemize}
-\daf{confrontare la descrizione di \texttt{stNum}/\texttt{sqNum} e delle ritrasmissioni con la parte 8-1 dello standard e con il materiale fornito}
 
 %----------------------------------------------------------
 \section{Configurazione: i file SCL}
@@ -213,7 +212,7 @@ Il linguaggio SCL (\textit{Substation Configuration Language}), basato su XML, p
     \item CID (\textit{Configured IED Description}): la configurazione di un IED specifico;
     \item SCD (\textit{Substation Configuration Description}): la descrizione dell'intero sistema, con i dispositivi e i collegamenti tra i loro dati.
 \end{itemize}
-Per chi sviluppa un sistema di test questi file sono la fonte da cui ricavare i nomi dei nodi logici, dei data set e dei \textit{Control Block} da verificare. \daf{indicare se e come i file SCL sono stati usati nel lavoro}
+Per chi sviluppa un sistema di test questi file sono la fonte da cui ricavare i nomi dei nodi logici, dei data set e dei \textit{Control Block} da verificare. \daf{il file .icd contiene la configurazione di base dell' IED ed è il punto di partenza dal quale si sviluppa la prima analisi. Tramite un parser raccogliamo le informazioni di base e creiamo le configurazioni di base che verranno popolate con i dati MMS e Goose subito dopo la loro creazione. }
 
 %----------------------------------------------------------
 \section{Architettura della sottostazione}
