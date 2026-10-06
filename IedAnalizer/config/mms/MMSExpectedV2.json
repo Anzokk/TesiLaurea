@@ -1,0 +1,34 @@
+{
+  "points": [
+    { "ref": "BU9020/LLN0.NamPlt.vendor", "key": "vendor",            "fc": "DC" },
+    { "ref": "BU9020/LLN0.NamPlt.swRev",  "key": "revisione_sw",      "fc": "DC" },
+    { "ref": "BU9020/LLN0.NamPlt.d",      "key": "descrizione_ied",   "fc": "DC" },
+    { "ref": "BU9020/LLN0.Health.stVal",  "key": "salute_lln0",       "fc": "ST" },
+    { "ref": "BU9020/LLN0.Beh.stVal",     "key": "comportamento_lln0","fc": "ST" },
+
+    { "ref": "BU9020/CSWI1.Pos.stVal",    "key": "pos_interruttore",  "fc": "ST" },
+    { "ref": "BU9020/CSWI1.Pos.q",        "key": "qualita_pos",       "fc": "ST" },
+    { "ref": "BU9020/CSWI1.Pos.t",        "key": "timestamp_pos",     "fc": "ST" },
+
+    { "ref": "BU9020/XCBR1.Pos.stVal",    "key": "pos_xcbr1",         "fc": "ST" },
+    { "ref": "BU9020/XCBR1.BlkOpn.stVal", "key": "blocco_apertura",   "fc": "ST" },
+    { "ref": "BU9020/XCBR1.BlkCls.stVal", "key": "blocco_chiusura",   "fc": "ST" },
+
+    { "ref": "BU9020/MMXU1.TotW.mag.f",   "key": "potenza_attiva",    "fc": "MX" },
+    { "ref": "BU9020/MMXU1.TotV.mag.f",   "key": "tensione_totale",   "fc": "MX" },
+    { "ref": "BU9020/MMXU1.TotA.mag.f",   "key": "corrente_totale",   "fc": "MX" },
+    { "ref": "BU9020/MMXU1.Hz.mag.f",     "key": "frequenza",         "fc": "MX" },
+    { "ref": "BU9020/MMXU1.TotPF.mag.f",  "key": "fattore_potenza",   "fc": "MX" },
+
+    { "ref": "BU9020/RSYN1.Sync.stVal",   "key": "consenso_sync",     "fc": "ST" },
+    { "ref": "BU9020/RSYN1.Rel.stVal",    "key": "rilevamento_sync",  "fc": "ST" },
+
+    { "ref": "BU9020/ATCC1.TapPos.stVal", "key": "posizione_tap",     "fc": "ST" },
+    { "ref": "BU9020/ATCC1.ParOp.stVal",  "key": "modo_parallelo",    "fc": "ST" }
+  ],
+
+  "report_blocks": [
+    { "ref": "BU9020/LLN0.RP.Urcb01", "key": "rcb_urcb01", "fc": "RP" },
+    { "ref": "BU9020/LLN0.BR.Brcb01", "key": "rcb_brcb01", "fc": "BR" }
+  ]
+}

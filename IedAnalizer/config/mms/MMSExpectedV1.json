@@ -1,0 +1,14 @@
+{
+  "points": [
+    {"ref":"BU9020/RSYN1.Sync.stVal",    "key":"sync_consent",       "fc":"ST"},
+    {"ref":"BU9020/MMXU1.PhV.phsA.mag.f","key":"tensione_linea_a",   "fc":"MX"},
+    {"ref":"BU9020/MMXU1.PhV.phsB.mag.f","key":"tensione_sbarra_a",  "fc":"MX"},
+    {"ref":"BU9020/XCBR1.Pos.stVal",     "key":"pos_interruttore",   "fc":"ST"},
+    {"ref":"BU9020/RREC1.AutoRecSt.stVal","key":"stato_richiusura",  "fc":"ST"},
+    {"ref":"BU9020/ATCC1.TapPos.stVal",  "key":"posizione_tap",      "fc":"ST"},
+    {"ref":"BU9020/ATCC1.VolSpt.setMag.f","key":"setpoint_tensione", "fc":"SP"}
+  ],
+  "report_blocks": [
+    {"ref":"BU9020/LLN0.RP.Urcb01", "key":"rcb_urcb01", "fc":"RP"}
+  ]
+}

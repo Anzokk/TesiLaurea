@@ -1,0 +1,446 @@
+\documentclass[11pt,a4paper,italian,oneside,openany]{book}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[italian]{babel}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{setspace}
+\usepackage{csquotes}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta}
+\usepackage[hidelinks]{hyperref}
+\pagestyle{plain}
+
+\onehalfspacing
+\setlength{\parindent}{1em}
+
+% Segnaposto per le parti ancora da scrivere (in rosso nel PDF)
+\newcommand{\daf}[1]{{\color{red}[\textbf{DA COMPLETARE:} #1]}}
+
+\lstset{
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    frame=single,
+    columns=fullflexible,
+    keepspaces=true
+}
+
+\begin{document}
+
+\begin{titlepage}
+    \centering
+
+    % Logo (scarica il logo ufficiale UniTO e salvalo come logo_unito.png)
+    \IfFileExists{logo_unito.png}{%
+        \includegraphics[width=0.55\textwidth]{logo_unito.png}\par
+    }{}
+    \vspace{2cm}
+
+    {\Huge\textsc{Dipartimento di Informatica}\par}
+    \vspace{0.6cm}
+
+    {\LARGE Corso di Laurea in Informatica\par}
+    \vspace{2.5cm}
+
+    {\normalsize{Tesi di Laurea}\par}
+    \vspace{0.3cm}
+
+    {\LARGE\bfseries Studio e verifica dei flussi IEC 61850\\[0.3em]
+    tramite libIEC61850 e analisi Wireshark\par}
+
+    \vfill
+
+    \noindent
+    \begin{minipage}[t]{0.55\textwidth}
+        \raggedright
+        Relatore universitario:\\[0.3em]
+        \textbf{Prof.\ Elvio Gilberto Amparore}\\[1em]
+        Relatore aziendale:\\[0.3em]
+        \textbf{Dott.\ Federico Cerruti}\\[1em]
+        Sede del tirocinio:\\[0.3em]
+        \textbf{Col Group -- Trofarello}
+    \end{minipage}%
+    \hfill
+    \begin{minipage}[t]{0.35\textwidth}
+        \raggedleft
+        Candidato:\\[0.3em]
+        {Mat.\ 867140}\\
+        \textbf{Plaia Antonino}
+    \end{minipage}
+
+    \vfill
+
+    {\small Periodo di svolgimento: 28/09/2026 -- 05/11/2026\par}
+    \vspace{0.6cm}
+    {\normalsize\textsc{Anno Accademico 2025/2026}\par}
+\end{titlepage}
+
+\frontmatter
+\tableofcontents
+\mainmatter
+
+%==========================================================
+\chapter{Introduzione}\label{cap:introduzione}
+%==========================================================
+Una sottostazione elettrica è il nodo della rete di trasmissione e distribuzione in cui la tensione viene trasformata, l'energia smistata e i guasti isolati. Le apparecchiature che la compongono, come interruttori, sezionatori, trasformatori di misura e relè di protezione, sono controllate e monitorate da dispositivi elettronici intelligenti, detti IED (\textit{Intelligent Electronic Device}), che scambiano informazioni tra loro e con il sistema di supervisione della stazione.
+
+Storicamente questo scambio è avvenuto tramite protocolli diversi, spesso specifici del costruttore, e attraverso cablaggi in rame dedicati a ogni singolo segnale. L'integrazione di apparati di produttori differenti richiedeva quindi dispositivi di conversione di protocollo (\textit{gateway}), che introducono ritardi e possibili errori nello scambio dei dati e aumentano i costi di progettazione, messa in servizio e manutenzione.
+
+%----------------------------------------------------------
+\section{Lo standard IEC 61850}\label{sec:standard}
+%----------------------------------------------------------
+Per superare questi limiti la Commissione Elettrotecnica Internazionale (IEC) ha sviluppato lo standard IEC~61850, \textit{Communication networks and systems for power utility automation}~\cite{iec61850}. Il suo obiettivo è l'interoperabilità: dispositivi di costruttori diversi devono poter scambiare informazioni senza conversioni, indipendentemente dalle caratteristiche fisiche di ciascun apparato. \daf{edizione dello standard supportata dal dispositivo in esame}
+
+Lo standard si fonda su tre idee principali: un modello dati virtualizzato, la separazione tra servizi di comunicazione e protocolli concreti, un linguaggio formale di configurazione.
+
+\subsection{Modello dati virtualizzato}
+Ogni dispositivo viene descritto in modo astratto, in base alle funzioni che svolge e alle informazioni che espone, e non in base al suo hardware. Un dispositivo fisico (IED) contiene uno o più \textit{Logical Device}, ciascuno composto da \textit{Logical Node} che rappresentano singole funzioni. Ad esempio \texttt{XCBR} modella un interruttore, \texttt{MMXU} le misure, \texttt{RSYN} il controllo di sincronismo, \texttt{RREC} la richiusura automatica e \texttt{ATCC} la regolazione automatica del variatore di prese del trasformatore. \daf{verificare nel file ICD quali nodi logici espone effettivamente l'unità in esame}
+
+A loro volta i nodi logici contengono \textit{Data Object}, a cui sono associati \textit{Data Attribute}, con nomi e significati uniformi per tutti i costruttori. Un riferimento a un attributo ha quindi la forma \texttt{LogicalDevice/LogicalNode.DataObject.DataAttribute}. I dati che devono essere trasmessi insieme vengono raggruppati in un \textit{data set}.
+
+\subsection{Servizi di comunicazione}
+I servizi di scambio informativo sono definiti in forma astratta (ACSI, \textit{Abstract Communication Service Interface}) e poi associati a protocolli concreti. I principali sono:
+\begin{itemize}
+    \item MMS (\textit{Manufacturing Message Specification}) su TCP/IP, per la comunicazione client--server;
+    \item GOOSE (\textit{Generic Object Oriented Substation Event}), per messaggi rapidi in multicast direttamente su Ethernet, usati per interblocchi e segnali di sgancio tra protezioni;
+    \item \textit{Sampled Values} (SV), per la trasmissione dei campioni digitalizzati di correnti e tensioni.
+\end{itemize}
+Poiché il presente lavoro riguarda MMS e GOOSE, i due servizi sono descritti più in dettaglio.
+
+\paragraph{MMS.} Il servizio è basato sul modello client--server ed è trasportato su TCP/IP (tipicamente sulla porta 102). Un client, ad esempio un sistema di supervisione, può leggere e scrivere i valori dei dati dell'IED, inviare comandi e ricevere rapporti (\textit{report}) spontanei configurati tramite \textit{Report Control Block}, bufferizzati o non bufferizzati, che inviano i dati al client al verificarsi di determinate condizioni.
+
+\paragraph{GOOSE.} Il servizio segue il modello \textit{publisher--subscriber}: un IED pubblica il contenuto di un data set e gli altri IED interessati lo ricevono. I messaggi viaggiano direttamente su Ethernet (livello~2), senza passare da IP e TCP, in multicast e con un EtherType dedicato, per ridurre la latenza. In caso di cambio di stato il messaggio viene inviato subito e poi ritrasmesso a intervalli inizialmente brevi e progressivamente crescenti, fino a un intervallo massimo di regime, così da recuperare eventuali perdite senza attendere conferme. I campi del messaggio rilevanti per la verifica sono:
+\begin{itemize}
+    \item \texttt{gocbRef}: riferimento al \textit{GOOSE Control Block} che pubblica il messaggio;
+    \item \texttt{datSet}: riferimento al data set pubblicato;
+    \item \texttt{goID}: identificatore del messaggio GOOSE;
+    \item \texttt{timeAllowedToLive}: tempo massimo che il ricevitore attende prima di considerare perso il messaggio successivo;
+    \item \texttt{t}: marca temporale dell'ultimo cambio di stato;
+    \item \texttt{stNum}: numero di stato, incrementato a ogni cambio di valore del data set;
+    \item \texttt{sqNum}: numero di sequenza, incrementato a ogni ritrasmissione con lo stesso \texttt{stNum} e riportato a zero quando \texttt{stNum} cambia;
+    \item il contenuto del data set (\textit{payload} applicativo).
+\end{itemize}
+\daf{confrontare la descrizione di \texttt{stNum}/\texttt{sqNum} e delle ritrasmissioni con la parte 8-1 dello standard e con il materiale fornito}
+
+\subsection{Il linguaggio di configurazione SCL}
+Il linguaggio SCL (\textit{Substation Configuration Language}), basato su XML, permette di descrivere in modo formale i dispositivi, la sottostazione e la rete di comunicazione, e di scambiare le configurazioni tra strumenti di costruttori diversi. I file di configurazione hanno estensioni diverse a seconda dello scopo: ICD (capacità di un singolo IED), CID (configurazione di un IED), SCD (descrizione dell'intero sistema).
+
+\subsection{Architettura della sottostazione}
+L'architettura di una sottostazione IEC~61850 è organizzata su tre livelli: livello di stazione, livello di campo (\textit{bay}, in italiano stallo) e livello di processo, collegati da reti Ethernet dette bus di stazione e bus di processo. Le funzioni di controllo di stallo, come quelle dell'unità considerata in questa tesi, si collocano al livello di campo.
+
+\subsection{Le parti dello standard}
+Lo standard è suddiviso in più parti. Quelle rilevanti per il lavoro sono riassunte nella Tabella~\ref{tab:parti}.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{@{}lp{10.5cm}@{}}
+\toprule
+\textbf{Parte} & \textbf{Contenuto} \\
+\midrule
+6 & Linguaggio di configurazione SCL \\
+7-2 & Servizi astratti ACSI e modello informativo di base \\
+7-3 & Classi di dati comuni \\
+7-4 & Classi di nodi logici compatibili e oggetti dato \\
+8-1 & Associazione dei servizi a MMS ed Ethernet (client--server e GOOSE) \\
+9-2 & Associazione dei \textit{Sampled Values} a Ethernet \\
+10 & Test di conformità \\
+\bottomrule
+\end{tabular}
+\caption{Parti dello standard IEC 61850 rilevanti per il lavoro svolto.}
+\label{tab:parti}
+\end{table}
+
+Il presente lavoro non è una procedura di certificazione secondo la parte~10, ma una verifica funzionale del comportamento del dispositivo in scenari controllati. \daf{confermare questa impostazione con il relatore aziendale}
+
+%----------------------------------------------------------
+\section{Il tirocinio}
+%----------------------------------------------------------
+Il presente lavoro nasce dal tirocinio curricolare svolto presso Col Group, a Trofarello, nel periodo dal 28 settembre al 5 novembre 2026.
+
+L'obiettivo del tirocinio è lo studio e la verifica dei flussi di comunicazione IEC~61850 generati e ricevuti da un'unità di stallo, la BU9020, mediante un ambiente di test su Linux. Per la realizzazione si utilizzano libIEC61850~\cite{libiec61850}, libreria open source scritta in C che implementa i servizi MMS, GOOSE e SV, e Wireshark~\cite{wireshark} insieme al suo strumento a riga di comando \texttt{tshark}, per la cattura e l'analisi del traffico di rete.
+
+Le attività svolte sono state \daf{riassumere in 3-5 righe cosa è stato fatto}. I risultati principali sono \daf{da scrivere a lavoro concluso, con dati concreti}.
+
+%==========================================================
+\chapter{Obiettivo}\label{cap:obiettivo}
+%==========================================================
+\section{Finalità del progetto}
+L'obiettivo è progettare e realizzare un ambiente di test per gestire una scheda di segnali analogici e digitali e analizzare i flussi IEC~61850 generati o ricevuti dalla BU9020 durante scenari funzionali controllati.
+
+Il lavoro correla tre livelli:
+\begin{enumerate}
+    \item \textbf{Stimolo fisico simulato.} Comandi inviati via seriale a una piattaforma basata su ESP32, che generano condizioni analogiche e digitali in ingresso all'unità.
+    \item \textbf{Comportamento applicativo della BU9020.} Attivazione di funzioni come sincronismo, richiusura o regolazione di tensione in risposta agli stimoli.
+    \item \textbf{Traffico IEC~61850 sulla LAN.} Messaggi MMS e GOOSE osservati tramite un client basato su libIEC61850 e tramite cattura Wireshark.
+\end{enumerate}
+
+Il risultato atteso non è una semplice cattura passiva del traffico, ma una procedura ripetibile in grado di stabilire se un determinato scenario produce il flusso IEC~61850 atteso. Il simulatore di segnali è già stato realizzato dall'azienda e non fa parte del contributo del lavoro: questo consiste nello studio del protocollo e nella costruzione di un \textit{framework} che automatizzi il ciclo di verifica.
+
+\section{Architettura proposta}
+L'architettura, illustrata in Figura~\ref{fig:architettura}, prevede un computer a scheda singola (SBC) ARM con sistema operativo Linux che svolge il ruolo di orchestratore. L'SBC è collegato in due modi: via seriale (USB/UART) alla piattaforma ESP32, che genera i segnali analogici e digitali applicati alla BU9020, e via Ethernet alla stessa LAN della BU9020, per interrogarla con il client IEC~61850 e catturare il traffico.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    node distance=2.4cm,
+    box/.style={draw, rounded corners, align=center, minimum width=4.4cm,
+                minimum height=1.4cm, font=\small},
+    >=Stealth, thick]
+\node[box, fill=blue!10]   (sbc) {\textbf{SBC ARM Linux}\\ orchestratore, libIEC61850,\\ tshark, analisi risultati};
+\node[box, fill=orange!15, right=of sbc] (esp) {\textbf{ESP32 + DAC + relè}\\ simulatore di segnali};
+\node[box, fill=violet!12, below=2.6cm of sbc] (bu) {\textbf{BU9020}\\ sincronismo, richiusura,\\ regolazione di tensione\\ MMS / GOOSE};
+\draw[->]   (sbc) -- node[above, font=\footnotesize, align=center]{seriale\\USB/UART} (esp);
+\draw[<->]  (sbc) -- node[left,  font=\footnotesize, align=center]{Ethernet LAN\\(MMS, GOOSE)} (bu);
+\draw[->]   (esp) -- node[right, font=\footnotesize, align=center]{segnali analogici\\e digitali} (bu);
+\end{tikzpicture}
+\caption{Architettura del banco di prova.}
+\label{fig:architettura}
+\end{figure}
+
+Il ciclo di verifica che il sistema deve automatizzare è il seguente: lo scenario di test genera i comandi, l'orchestratore li invia via seriale al simulatore, i segnali fisici raggiungono la BU9020, questa produce traffico IEC~61850 sulla rete, il traffico viene catturato e analizzato, e l'esito è riportato in un rapporto di superamento o fallimento (\textit{pass/fail}).
+
+\section{Componenti software}
+\subsection{Orchestratore dei test}
+L'orchestratore è un programma, o un insieme di script, preferibilmente in Python, che si occupa di: caricare la descrizione di uno scenario di test; inviare i comandi seriali alla piattaforma ESP32; avviare la cattura del traffico di rete; interrogare la BU9020 tramite il client IEC~61850; raccogliere risultati e registri (\textit{log}); generare un rapporto di esito.
+
+\subsection{Client IEC 61850}
+Il client, basato su libIEC61850, deve consentire almeno la connessione MMS alla BU9020, la lettura di oggetti dato, la verifica di attributi IEC~61850 e la correlazione dei valori letti con gli eventi generati. Sono inoltre previsti, se supportati dal setup, l'attivazione o il controllo di un \textit{Report Control Block} e la sottoscrizione o l'analisi dei messaggi GOOSE.
+
+Un esempio di verifica è il seguente. All'evento simulato \enquote{perdita di sincronismo tra tensione di linea e di sbarra} deve corrispondere l'aggiornamento dello stato logico interno, l'eventuale blocco del comando, la pubblicazione di un messaggio GOOSE con stato \enquote{non sincronizzato} e la lettura via MMS di valori coerenti. La parte più interessante del lavoro è trasformare il client da semplice strumento di lettura a componente di verifica automatica.
+
+\subsection{Acquisizione e validazione con Wireshark e tshark}
+Wireshark rimane lo strumento di riferimento per la validazione manuale e diagnostica, mentre \texttt{tshark} permette di estrarre automaticamente i campi dai file di cattura \texttt{.pcapng}. Le verifiche previste riguardano:
+\begin{itemize}
+    \item la presenza dei frame GOOSE attesi;
+    \item la correttezza dei campi \texttt{gocbRef}, \texttt{datSet}, \texttt{goID}, \texttt{stNum}, \texttt{sqNum}, \texttt{timeAllowedToLive}, della marca temporale e del contenuto applicativo;
+    \item la sequenza dei messaggi dopo un evento e le ritrasmissioni dopo un cambio di stato;
+    \item la coerenza tra cambio di stato e incremento di \texttt{stNum};
+    \item la latenza tra l'evento e il frame GOOSE corrispondente;
+    \item l'assenza di frame inattesi.
+\end{itemize}
+
+\subsection{Interfaccia web (componente opzionale)}
+Come obiettivo secondario, e solo se il tempo lo consente, l'orchestratore può esporre un'interfaccia web HTTP/REST in esecuzione sull'SBC. Il server web non comunica direttamente con l'ESP32: ogni comando passa attraverso l'orchestratore, che lo inoltra via seriale al simulatore. Le funzioni previste sono il controllo remoto del simulatore, un pannello di monitoraggio dello stato dei segnali e della connessione con la BU9020, la gestione degli scenari di test e un'API per l'automazione, che permette anche l'integrazione con sistemi di integrazione continua. \daf{indicare se questa componente è stata realizzata}
+
+\section{Scenari di test}
+Sono previsti tre scenari, corrispondenti alle funzioni della BU9020 riassunte nella Tabella~\ref{tab:scenari}.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{@{}p{2.8cm}p{4.8cm}p{5.4cm}@{}}
+\toprule
+\textbf{Scenario} & \textbf{Grandezze controllate} & \textbf{Verifiche IEC 61850} \\
+\midrule
+Controllo di sincronismo &
+differenza di fase e di tensione; differenza di frequenza, se supportata dalla piattaforma; stato digitale di abilitazione del comando &
+stato del consenso al sincronismo; eventuale GOOSE; lettura MMS dello stato associato; latenza tra stimolo e aggiornamento \\
+\addlinespace
+Richiusura automatica &
+apertura dell'interruttore; simulazione di guasto; rientro delle condizioni corrette; abilitazione o inibizione della richiusura &
+sequenza degli stati; comandi e feedback associati; messaggi GOOSE generati; corretto incremento di \texttt{stNum}; tempi tra gli eventi \\
+\addlinespace
+Regolazione di tensione del trasformatore &
+tensione misurata; soglie di regolazione; ingressi digitali di blocco o consenso; eventuali feedback di posizione &
+stato del regolatore; richieste di salita e discesa prese; messaggi GOOSE relativi; valori MMS esposti; coerenza tra scenario e comando atteso \\
+\bottomrule
+\end{tabular}
+\caption{Scenari di test previsti.}
+\label{tab:scenari}
+\end{table}
+
+\daf{indicare quali scenari sono stati effettivamente implementati e testati}
+
+\section{Elaborati previsti}
+Il lavoro prevede di produrre:
+\begin{enumerate}
+    \item un ambiente Linux di test (configurazione dell'SBC, gestione della seriale verso l'ESP32, gestione della cattura di rete);
+    \item un client IEC~61850 in C basato su libIEC61850, integrato nel flusso automatico di test;
+    \item una suite di test in Python, con scenari descritti in YAML o JSON, stimoli, condizioni attese e criteri di superamento;
+    \item un analizzatore dei pacchetti basato su \texttt{tshark}, che estrae i campi IEC~61850 e verifica automaticamente i frame GOOSE;
+    \item un rapporto finale con gli esiti, i tempi misurati, i messaggi osservati e le eventuali anomalie.
+\end{enumerate}
+\daf{aggiornare l'elenco con quanto realizzato}
+
+%==========================================================
+\chapter{Contesto lavorativo}\label{cap:contesto}
+%==========================================================
+\section{L'azienda}
+\daf{descrivere Col Group: attività, settore, dimensioni, sede di Trofarello, e il reparto in cui si è svolto il tirocinio}
+
+\section{L'unità BU9020}
+La BU9020 è un'unità destinata ad applicazioni di stallo in ambito elettrico. Fornisce funzioni di controllo e monitoraggio, tra cui: controllo di sincronismo, richiusura automatica, regolazione della tensione del trasformatore, gestione di ingressi e uscite digitali, pubblicazione e ricezione di messaggi IEC~61850. \daf{aggiungere una descrizione più completa dell'unità: ruolo nel prodotto aziendale, interfacce, versione del firmware}
+
+\section{La piattaforma di simulazione dei segnali}
+Per stimolare la BU9020 l'azienda ha già realizzato una piattaforma di prova basata su un microcontrollore ESP32, un convertitore digitale-analogico (DAC) e dei relè. La piattaforma è in grado di generare segnali analogici trifase e stati digitali controllati e può essere pilotata tramite interfaccia UART. \daf{specificare i comandi seriali disponibili, le grandezze e i limiti di generazione (ad esempio la frequenza)}
+
+\section{Ambiente di lavoro}
+\daf{descrivere l'SBC ARM utilizzato (modello, sistema operativo), la rete di test, gli strumenti e le modalità di lavoro in azienda}
+
+\section{Background tecnico}\label{sec:background}
+Questa sezione riprende dallo standard IEC~61850 gli elementi necessari per interpretare il traffico catturato e il codice del client. Il riferimento sono le parti 7-2 (servizi astratti), 7-4 (nodi logici) e 8-1 (associazione a MMS)
+\textcolor{red}{[indicare titolo, anno ed edizione di ciascuna parte]}.
+
+\subsection{Modello dati e riferimenti a oggetto}
+Un dispositivo (\textit{server}) contiene uno o più \textit{Logical Device}, ciascuno composto da \textit{Logical Node}, che contengono \textit{Data Object} e \textit{Data Attribute}. Ogni oggetto ha un nome, univoco solo nel proprio livello, e un riferimento, univoco nell'intero sistema, ottenuto concatenando i nomi lungo il percorso. Ogni attributo è inoltre associato a un \textit{Functional Constraint} (FC), che indica a quale funzione appartiene: ad esempio \texttt{ST} per lo stato, \texttt{MX} per le misure, \texttt{CO} per i comandi.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+Livello & Nome & Riferimento \\
+\midrule
+Logical Device & \texttt{LD1} & \texttt{LD1} \\
+Logical Node & \texttt{XCBR1} & \texttt{LD1/XCBR1} \\
+Data Object & \texttt{Pos} & \texttt{LD1/XCBR1.Pos} \\
+Data Attribute & \texttt{stVal} & \texttt{LD1/XCBR1.Pos.stVal} \\
+\bottomrule
+\end{tabular}
+\caption{Gerarchia del modello dati per la posizione di un interruttore.}
+\label{tab:riferimenti}
+\end{table}
+
+Nel mapping su MMS il server corrisponde a un \textit{VMD}, ogni Logical Device a un \textit{domain} e ogni dato a una \textit{named variable}. Il riferimento viene quindi diviso nel punto della barra, i punti sono sostituiti dal carattere \texttt{\$} e il Functional Constraint è inserito dopo il nome del nodo:
+
+\begin{lstlisting}[basicstyle=\ttfamily\small,frame=single]
+IEC 61850:  LD1/XCBR1.Pos.stVal    FC = ST
+MMS:        domainId = "LD1"
+            itemId   = "XCBR1$ST$Pos$stVal"
+\end{lstlisting}
+
+Queste due stringhe sono quelle che compaiono nelle richieste di lettura analizzate con Wireshark (Capitolo~\ref{cap:risultati}).
+\textcolor{red}{[Verificare se nella BU9020 il domainId include il nome dello IED.]}
+
+\subsection{Logical Node 0 e nodi funzionali}
+Ogni Logical Device contiene obbligatoriamente il nodo \texttt{LLN0}, che rappresenta il dispositivo logico nel suo insieme, e il nodo \texttt{LPHD}, che rappresenta il dispositivo fisico, oltre ad almeno un nodo funzionale (ad esempio \texttt{XCBR} per un interruttore o \texttt{MMXU} per le misure). La differenza pratica è che i \textit{control block} dei servizi multicast (GOOSE e Sampled Values) e dei gruppi di parametri sono definiti solo in \texttt{LLN0}, mentre i nodi funzionali possono contenere solo i control block dei report e dei log. Per questo i riferimenti ai control block hanno forma \texttt{LD1/LLN0\$RP\$...} o \texttt{LD1/LLN0\$GO\$...}.
+
+\subsection{Servizi di report}
+Il \textit{report} è il servizio con cui il server invia al client, in modo spontaneo, i valori di un \textit{data set}, cioè di un elenco ordinato di riferimenti a dati. L'invio è governato da un \textit{Report Control Block}, che può essere \textit{buffered} (gli eventi sono conservati se il client è disconnesso) oppure \textit{unbuffered} (gli eventi in assenza del client sono persi). Il client abilita il report scrivendo l'attributo \texttt{RptEna}.
+
+Il motivo per cui un report viene inviato è espresso dalle \textit{trigger condition}, riassunte in Tabella~\ref{tab:trigger}. Un invio avviene solo se la condizione è abilitata nel control block e l'attributo la supporta. Ogni dato incluso in un report riporta la causa di inclusione, ed è il campo con cui, nell'analisi, si distinguono i report generati da eventi da quelli periodici o richiesti dal client.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{@{}lp{9cm}@{}}
+\toprule
+Condizione & Quando si verifica \\
+\midrule
+\texttt{dchg} & cambia il valore di un dato \\
+\texttt{qchg} & cambia la qualità di un dato \\
+\texttt{dupd} & il dato viene aggiornato, anche senza variare \\
+\texttt{integrity} & scade il periodo \texttt{IntgPd}: vengono inviati tutti i valori \\
+\texttt{GI} & il client richiede la lettura completa del data set \\
+\bottomrule
+\end{tabular}
+\caption{Condizioni che possono provocare l'invio di un report.}
+\label{tab:trigger}
+\end{table}
+
+\subsection{GOOSE}
+I messaggi GOOSE sono inviati in multicast direttamente su Ethernet (Ethertype \texttt{0x88B8}), senza passare da IP e TCP, con un meccanismo di tipo \textit{publisher--subscriber} privo di conferme. L'affidabilità è ottenuta ripetendo il messaggio: dopo una variazione dei dati il publisher lo ritrasmette a intervalli crescenti fino a un intervallo di regime. Per la verifica dei flussi sono significativi i campi in Tabella~\ref{tab:goose}.
+
+\begin{table}[ht]
+\centering
+\begin{tabular}{@{}lp{9cm}@{}}
+\toprule
+Campo & Significato \\
+\midrule
+\texttt{stNum} & numero di stato: cresce a ogni variazione dei dati \\
+\texttt{sqNum} & numero di sequenza: riparte da zero a ogni variazione e cresce a ogni ripetizione \\
+\texttt{confRev} & revisione della configurazione del data set \\
+\texttt{timeAllowedToLive} & tempo oltre il quale il subscriber considera perso il publisher \\
+\bottomrule
+\end{tabular}
+\caption{Campi del messaggio GOOSE usati nell'analisi.}
+\label{tab:goose}
+\end{table}
+
+Un salto di \texttt{sqNum} indica quindi un messaggio perso, mentre una variazione di \texttt{stNum} indica un evento.
+
+%==========================================================
+\chapter{Processo lavorativo}\label{cap:processo}
+%==========================================================
+\section{Metodologia}
+\daf{descrivere l'organizzazione del lavoro: fasi, incontri con il relatore aziendale, strumenti di versionamento e documentazione}
+
+\section{Studio dello standard e preparazione del banco}
+\daf{materiale studiato, configurazione del banco, versioni di libIEC61850 e di Wireshark utilizzate}
+
+\section{Sviluppo dell'orchestratore e del protocollo seriale}
+\daf{struttura del programma, formato degli scenari (YAML/JSON), comandi inviati all'ESP32}
+
+\section{Sviluppo del client libIEC61850}
+\daf{funzionalità implementate, come è stata gestita la connessione MMS e, se presente, la sottoscrizione GOOSE}
+
+\section{Cattura e analisi del traffico}
+L'estrazione dei campi GOOSE da un file di cattura avviene con \texttt{tshark}. Un esempio di comando è il seguente:
+\begin{lstlisting}
+tshark -r test_sync_check_ok.pcapng \
+  -Y "goose" \
+  -T fields \
+  -e frame.time_epoch \
+  -e eth.src \
+  -e goose.gocbRef \
+  -e goose.datSet \
+  -e goose.goID \
+  -e goose.stNum \
+  -e goose.sqNum
+\end{lstlisting}
+\daf{filtri e comandi effettivamente usati, come vengono automatizzate le verifiche}
+
+\section{Esecuzione degli scenari}
+\daf{procedura di esecuzione di uno scenario e criteri di pass/fail adottati}
+
+%==========================================================
+\chapter{Risultati ottenuti}\label{cap:risultati}
+%==========================================================
+\section{Esiti degli scenari}
+\daf{per ogni scenario: esito, messaggi osservati, confronto con il comportamento atteso}
+
+\section{Tempi misurati}
+\daf{latenze tra stimolo, evento e frame GOOSE, con il metodo di misura e la sua incertezza}
+
+\section{Anomalie riscontrate}
+\daf{comportamenti inattesi della BU9020 o del banco di prova e loro analisi}
+
+%==========================================================
+\chapter{Bilancio dell'esperienza formativa}\label{cap:bilancio}
+%==========================================================
+\section{Competenze acquisite}
+\daf{competenze tecniche e trasversali}
+
+\section{Difficoltà incontrate}
+\daf{difficoltà tecniche e organizzative e come sono state risolte}
+
+\section{Collegamento con il percorso di studi}
+\daf{insegnamenti che sono risultati utili e conoscenze che mancavano}
+
+%==========================================================
+\chapter{Conclusioni}\label{cap:conclusioni}
+%==========================================================
+\daf{efficacia dell'ambiente di test, limiti del lavoro, sviluppi futuri, ad esempio l'integrazione in una pipeline di test più ampia}
+
+%==========================================================
+\begin{thebibliography}{9}
+\addcontentsline{toc}{chapter}{Bibliografia}
+
+\bibitem{iec61850}
+IEC, \textit{IEC 61850: Communication networks and systems for power utility automation}, serie di norme. \daf{indicare le parti e le edizioni consultate}
+
+\bibitem{libiec61850}
+MZ Automation GmbH, \textit{libIEC61850}, libreria open source. \url{https://libiec61850.com}. \daf{data di consultazione e versione}
+
+\bibitem{wireshark}
+Wireshark Foundation, \textit{Wireshark}. \url{https://www.wireshark.org}. \daf{data di consultazione e versione}
+
+\bibitem{cesi}
+CESI, \textit{FIA Informatica e Automazione}, 2005. \daf{completare i dati del documento e citarlo nel testo dove è stato usato}
+
+\end{thebibliography}
+\nocite{cesi}
+
+\end{document}

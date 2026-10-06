@@ -1,0 +1,12 @@
+{
+  "scenario": "sync_check_ok",
+  "event_time_epoch": 1712345678.123,
+  "expected_gocb_ref": "BU9020/LLN0$GO$GcbSync",
+  "expected_dataset":  "BU9020/LLN0$SyncDS",
+  "expected_go_id":    "SYNC_STATUS",
+  "expected_stnum_changes": 1,
+  "max_retransmission_interval_ms": 1100,
+  "max_event_to_goose_latency_ms": 50,
+  "forbid_unexpected_frames": true,
+  "expected_entries": 4
+}

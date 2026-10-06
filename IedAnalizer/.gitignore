@@ -1,0 +1,12 @@
+# File generati
+bin/*
+!bin/.gitkeep
+__pycache__/
+*.pyc
+
+# Risultati dei test (si rigenerano)
+data/results/*
+!data/results/.gitkeep
+
+# Dipendenza esterna (link simbolico locale)
+lib/libiec61850

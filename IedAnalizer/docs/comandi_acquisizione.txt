@@ -1,0 +1,4 @@
+
+
+
+sudo tshark -i enx503f56005b3e -a duration:60 -w - > baseline_cassetto.pcapng
