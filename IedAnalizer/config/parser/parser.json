@@ -3,51 +3,38 @@
   "port": 102,
   "interface": "enx503f56005b3e",
   "goose_time_s": 5,
-  "output": "data/results/parser.json",
-
-  "goose": [
-    { "ref": "XSCT1M01SMNPBMUCM1/LLN0$GO$GseBCU_Op_gocb", "key": "goose_op", "appid": "0E65" }
-  ],
-
-  "points": [
-    { "ref": "XSCT1M01SMNPBMUCM1/LLN0.NamPlt.vendor",       "key": "vendor",               "fc": "DC" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LLN0.NamPlt.swRev",        "key": "revisione_sw",         "fc": "DC" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LLN0.NamPlt.d",            "key": "descrizione_ied",      "fc": "DC" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LLN0.Mod.stVal",           "key": "modo_lln0",            "fc": "ST" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LLN0.Beh.stVal",           "key": "comportamento_lln0",   "fc": "ST" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LLN0.Health.stVal",        "key": "salute_lln0",          "fc": "ST" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LLN0.Health.q",            "key": "qualita_salute_lln0",  "fc": "ST" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LLN0.Health.t",            "key": "timestamp_salute_lln0","fc": "ST" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LLN0.Loc.stVal",           "key": "comando_locale",       "fc": "ST" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LLN0.ESta.stVal",          "key": "esta_lln0",            "fc": "ST" },
-
-    { "ref": "XSCT1M01SMNPBMUCM1/LBMULPHD1.PhyNam.vendor",  "key": "hw_vendor",            "fc": "DC" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LBMULPHD1.PhyNam.hwRev",   "key": "hw_revisione",         "fc": "DC" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LBMULPHD1.PhyNam.swRev",   "key": "hw_revisione_sw",      "fc": "DC" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LBMULPHD1.PhyHealth.stVal","key": "salute_fisica",        "fc": "ST" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LBMULPHD1.NumPwrUp.stVal", "key": "numero_accensioni",    "fc": "ST" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LBMULPHD1.OpTmh.stVal",    "key": "ore_funzionamento",    "fc": "ST" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LBMULPHD1.PwrSupAlm.stVal","key": "allarme_alimentazione","fc": "ST" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LBMULPHD1.Proxy.stVal",    "key": "proxy",                "fc": "ST" },
-
-    { "ref": "XSCT1M01SMNPBMUCM1/LBMULTMS1.TmSrcTyp.stVal", "key": "tipo_sorgente_tempo",  "fc": "ST" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LBMULTMS1.TmSynErr.stVal", "key": "errore_sincr_tempo",   "fc": "ST" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LBMULTMS1.TmChSt1.stVal",  "key": "stato_canale_tempo1",  "fc": "ST" },
-
-    { "ref": "XSCT1M01SMNPBMUCM1/LBMUGAPC1.Beh.stVal",      "key": "comportamento_gapc1",  "fc": "ST" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LBMUGAPC1.Op.general",     "key": "intervento_gapc1",     "fc": "ST" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LBMUGAPC1.Ind1.stVal",     "key": "indicazione1_gapc1",   "fc": "ST" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LBMUGAPC1.Alm1.stVal",     "key": "allarme1_gapc1",       "fc": "ST" },
-
-    { "ref": "XSCT1M01SMNPBMUCM1/LPWRCSFXUT1.Op.general",   "key": "intervento_fxut1",     "fc": "ST" },
-
-    { "ref": "XSCT1M01SMNPBMUCM1/LDFRRDRE1.FltNum.stVal",   "key": "numero_guasti_dfr1",   "fc": "ST" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LDFRRDRE1.RcdMade.stVal",  "key": "registrazione_dfr1",   "fc": "ST" }
-  ],
-
-  "report_blocks": [
-    { "ref": "XSCT1M01SMNPBMUCM1/LLN0.Anom_Aliment_BMUOP_urcb01", "key": "rcb_anom_aliment", "fc": "RP" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LLN0.Anom_IED_BMUOP_urcb01",     "key": "rcb_anom_ied",     "fc": "RP" },
-    { "ref": "XSCT1M01SMNPBMUCM1/LLN0.op_urcb01",                 "key": "rcb_op",           "fc": "RP" }
-  ]
+  "gocbRef": "XSCT1M01SMNPBMUCM1/LLN0$GO$GseBCU_Op_gocb",
+  "points": {
+    "XSCT1M01SMNPBMUCM1/LLN0.NamPlt.vendor": "DC",
+    "XSCT1M01SMNPBMUCM1/LLN0.NamPlt.swRev": "DC",
+    "XSCT1M01SMNPBMUCM1/LLN0.NamPlt.d": "DC",
+    "XSCT1M01SMNPBMUCM1/LLN0.Mod.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LLN0.Beh.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LLN0.Health.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LLN0.Health.q": "ST",
+    "XSCT1M01SMNPBMUCM1/LLN0.Health.t": "ST",
+    "XSCT1M01SMNPBMUCM1/LLN0.Loc.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LLN0.ESta.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LBMULPHD1.PhyNam.vendor": "DC",
+    "XSCT1M01SMNPBMUCM1/LBMULPHD1.PhyNam.hwRev": "DC",
+    "XSCT1M01SMNPBMUCM1/LBMULPHD1.PhyNam.swRev": "DC",
+    "XSCT1M01SMNPBMUCM1/LBMULPHD1.PhyHealth.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LBMULPHD1.NumPwrUp.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LBMULPHD1.OpTmh.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LBMULPHD1.PwrSupAlm.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LBMULPHD1.Proxy.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LBMULTMS1.TmSrcTyp.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LBMULTMS1.TmSynErr.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LBMULTMS1.TmChSt1.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LBMUGAPC1.Beh.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LBMUGAPC1.Op.general": "ST",
+    "XSCT1M01SMNPBMUCM1/LBMUGAPC1.Ind1.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LBMUGAPC1.Alm1.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LPWRCSFXUT1.Op.general": "ST",
+    "XSCT1M01SMNPBMUCM1/LDFRRDRE1.FltNum.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LDFRRDRE1.RcdMade.stVal": "ST",
+    "XSCT1M01SMNPBMUCM1/LLN0.Anom_Aliment_BMUOP_urcb01.RptEna": "RP",
+    "XSCT1M01SMNPBMUCM1/LLN0.Anom_IED_BMUOP_urcb01.RptEna": "RP",
+    "XSCT1M01SMNPBMUCM1/LLN0.op_urcb01.RptEna": "RP"
+  }
 }

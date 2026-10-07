@@ -2,6 +2,7 @@
 bin/*
 !bin/.gitkeep
 __pycache__/
+.venv/
 *.pyc
 
 # Risultati dei test (si rigenerano)

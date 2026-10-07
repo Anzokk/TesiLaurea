@@ -1,0 +1,121 @@
+# Scenario 2 - Richiusura automatica (RREC + XCBR).
+# Un guasto transitorio deve dare: richiusura in corso, comando di chiusura
+# dopo il tempo morto, fine ciclo dopo il tempo di reclaim. Un guasto
+# permanente (nuovo scatto durante il reclaim) deve portare al fallimento
+# della richiusura; con la richiusura inibita non deve partire nessun ciclo.
+#
+# Da completare prima dell'esecuzione:
+# - LD "CTRL" e istanze dei LN: dal CID della BU9020 (demo_old.icd ha solo
+#   i tipi RREC_COL e XCBR_COL);
+# - GoCB Rec_gocb con dataset
+#   [RREC1.AutoRecPrg.stVal, RREC1.OpCls.general, RREC1.AutoRecFail.stVal]
+#   da configurare;
+# - impostazioni sull'IED (ipotesi): un solo ciclo, tempo morto 5 s,
+#   tempo di reclaim 10 s (piu' lunghi del passo minimo del banco, ~6 s);
+# - l'interruttore e' simulato: la sua posizione arriva alla BU9020 dai
+#   rele' dell'ESP32 e la "chiusura" dopo il comando la fa il passo seguente;
+# - comandi ESP32 (sintassi provvisoria, da adattare al firmware):
+#     DI <n> <0|1>   rele' sull'ingresso digitale n della BU9020
+#   DI 2 = 52a (chiuso), DI 3 = 52b (aperto), DI 4 = scatto protezione
+#   (avvio richiusura), DI 5 = blocco richiusura.
+# Pos.stVal: "10" chiuso, "01" aperto.
+nome: Richiusura automatica
+gocbRef: CTRL/LLN0$GO$Rec_gocb
+
+rete:
+  goose.gocbRef: CTRL/LLN0$GO$Rec_gocb
+  goose.simulation: false
+  goose.ndsCom: false
+  vlan.priority: 4
+
+punti:
+  CTRL/RREC1.AutoRecEn.stVal: ST        # richiusura abilitata
+  CTRL/RREC1.AutoRecPrg.stVal: ST       # ciclo in corso
+  CTRL/RREC1.AutoRecFail.stVal: ST      # richiusura fallita
+  CTRL/RREC1.Blk.stVal: ST              # richiusura bloccata
+  CTRL/XCBR1.Pos.stVal: ST              # posizione interruttore
+
+passi:
+  - nome: interruttore chiuso, richiusura pronta
+    stimolo: [DI 2 1, DI 3 0, DI 4 0, DI 5 0]
+    attesa_s: 3
+    atteso:
+      mms:
+        CTRL/XCBR1.Pos.stVal: "10"
+        CTRL/RREC1.AutoRecEn.stVal: true
+        CTRL/RREC1.AutoRecPrg.stVal: false
+        CTRL/RREC1.Blk.stVal: false
+
+  - nome: guasto transitorio, scatto e apertura
+    stimolo: [DI 4 1, DI 2 0, DI 3 1]
+    attesa_s: 7                         # oltre il tempo morto
+    atteso:
+      mms:
+        CTRL/XCBR1.Pos.stVal: "01"
+        CTRL/RREC1.AutoRecPrg.stVal: true
+      sequenza:
+        0: [true]                       # ciclo avviato
+        1: [false, true, false]         # un impulso di chiusura dopo il tempo morto
+      latenza_max_ms: 500
+
+  - nome: chiusura dell'interruttore, guasto estinto
+    stimolo: [DI 4 0, DI 2 1, DI 3 0]
+    attesa_s: 12                        # oltre il tempo di reclaim
+    atteso:
+      mms:
+        CTRL/XCBR1.Pos.stVal: "10"
+        CTRL/RREC1.AutoRecPrg.stVal: false
+        CTRL/RREC1.AutoRecFail.stVal: false
+      sequenza: {0: [false], 2: [false]}
+
+  - nome: guasto permanente, primo scatto
+    stimolo: [DI 4 1, DI 2 0, DI 3 1]
+    attesa_s: 7
+    atteso:
+      sequenza: {0: [true], 1: [false, true, false]}
+
+  - nome: richiusura sul guasto
+    stimolo: [DI 4 0, DI 2 1, DI 3 0]
+    attesa_s: 1                         # il passo seguente cade nel reclaim
+    atteso:
+      mms: {CTRL/XCBR1.Pos.stVal: "10"}
+
+  - nome: nuovo scatto nel reclaim
+    stimolo: [DI 4 1, DI 2 0, DI 3 1]
+    attesa_s: 7                         # oltre il tempo morto
+    atteso:
+      mms:
+        CTRL/XCBR1.Pos.stVal: "01"
+        CTRL/RREC1.AutoRecFail.stVal: true
+      sequenza:
+        1: [false]                      # nessun altro comando di chiusura
+        2: [true]                       # richiusura fallita
+
+  - nome: ripristino, interruttore chiuso
+    stimolo: [DI 4 0, DI 2 1, DI 3 0]
+    attesa_s: 12
+    atteso:
+      mms:
+        CTRL/XCBR1.Pos.stVal: "10"
+        CTRL/RREC1.AutoRecPrg.stVal: false
+
+  - nome: richiusura inibita
+    stimolo: [DI 5 1]
+    attesa_s: 3
+    atteso:
+      mms: {CTRL/RREC1.Blk.stVal: true}
+
+  - nome: guasto con richiusura inibita
+    stimolo: [DI 4 1, DI 2 0, DI 3 1]
+    attesa_s: 7
+    atteso:
+      mms:
+        CTRL/XCBR1.Pos.stVal: "01"
+        CTRL/RREC1.AutoRecPrg.stVal: false
+      stati_goose: 0                    # nessun ciclo, nessuna chiusura
+
+  - nome: ripristino finale
+    stimolo: [DI 4 0, DI 5 0, DI 2 1, DI 3 0]
+    attesa_s: 3
+    atteso:
+      mms: {CTRL/XCBR1.Pos.stVal: "10", CTRL/RREC1.Blk.stVal: false}

@@ -1,0 +1,91 @@
+# Scenario 3 - Regolazione tensione del trasformatore (ATCC + YLTC + MMXU).
+# Con tensione fuori banda il regolatore deve chiedere una salita (sotto
+# tensione) o una discesa (sovratensione) del tap dopo il ritardo T1; in
+# banda o con regolazione bloccata non deve chiedere nulla. La misura MMS
+# deve seguire la tensione simulata.
+#
+# Da completare prima dell'esecuzione:
+# - LD "CTRL" e istanze dei LN: dal CID della BU9020 (demo_old.icd ha solo
+#   i tipi ATCC_COL, YLTC_COL, MMXU_COL);
+# - richieste di salita/discesa: qui ATCC1.TapOpR / TapOpL (DO della
+#   IEC 61850-7-4, assenti nel tipo ATCC_COL): verificare nel CID quali
+#   dati della BU9020 le espongono;
+# - GoCB Reg_gocb con dataset [ATCC1.TapOpR.stVal, ATCC1.TapOpL.stVal]
+#   da configurare;
+# - impostazioni sull'IED (ipotesi): tensione di riferimento 100 V,
+#   banda +-2 %, ritardo T1 5 s, ritardo successivo T2 15 s, impulso 1 s;
+#   l'anello e' aperto (il tap non cambia la tensione simulata), quindi in
+#   un passo di ~10 s arriva una sola richiesta;
+# - comandi ESP32 (sintassi provvisoria, da adattare al firmware):
+#     UB <V> <fase gradi> <Hz>   tensione regolata (sbarra)
+#     DI <n> <0|1>               rele' sull'ingresso digitale n della BU9020
+#   DI 6 = regolatore in automatico, DI 7 = blocco regolazione.
+nome: Regolazione tensione
+gocbRef: CTRL/LLN0$GO$Reg_gocb
+
+rete:
+  goose.gocbRef: CTRL/LLN0$GO$Reg_gocb
+  goose.simulation: false
+  goose.ndsCom: false
+  vlan.priority: 4
+
+punti:
+  CTRL/MMXU1.PPV.phsAB.cVal.mag.f: MX   # tensione misurata
+  CTRL/ATCC1.RATInServ.stVal: ST        # regolatore in servizio
+  CTRL/ATCC1.TapOpR.stVal: ST           # richiesta salita tap
+  CTRL/ATCC1.TapOpL.stVal: ST           # richiesta discesa tap
+  CTRL/YLTC1.Blk.stVal: ST              # variatore bloccato
+
+passi:
+  - nome: tensione in banda, regolatore in automatico
+    stimolo: [UB 100 0 50, DI 6 1, DI 7 0]
+    attesa_s: 7
+    atteso:
+      mms:
+        CTRL/MMXU1.PPV.phsAB.cVal.mag.f: {min: 99, max: 101}
+        CTRL/ATCC1.RATInServ.stVal: true
+        CTRL/ATCC1.TapOpR.stVal: false
+        CTRL/ATCC1.TapOpL.stVal: false
+
+  - nome: sottotensione 90 V
+    stimolo: [UB 90 0 50]
+    attesa_s: 7                         # oltre T1, prima di T1 + T2
+    atteso:
+      mms: {CTRL/MMXU1.PPV.phsAB.cVal.mag.f: {min: 89, max: 91}}
+      stati_goose: 2                    # inizio e fine dell'impulso
+      sequenza:
+        0: [true, false]                # una richiesta di salita
+        1: [false]                      # nessuna discesa
+      latenza_max_ms: 6000              # T1 + margine
+
+  - nome: rientro in banda
+    stimolo: [UB 100 0 50]
+    attesa_s: 7
+    atteso:
+      mms: {CTRL/MMXU1.PPV.phsAB.cVal.mag.f: {min: 99, max: 101}}
+      stati_goose: 0
+
+  - nome: sovratensione 110 V
+    stimolo: [UB 110 0 50]
+    attesa_s: 7
+    atteso:
+      mms: {CTRL/MMXU1.PPV.phsAB.cVal.mag.f: {min: 109, max: 111}}
+      stati_goose: 2
+      sequenza:
+        0: [false]
+        1: [true, false]                # una richiesta di discesa
+      latenza_max_ms: 6000
+
+  - nome: regolazione bloccata in sottotensione
+    stimolo: [DI 7 1, UB 90 0 50]
+    attesa_s: 7
+    atteso:
+      mms: {CTRL/YLTC1.Blk.stVal: true}
+      stati_goose: 0                    # nessuna richiesta
+
+  - nome: sblocco e rientro in banda
+    stimolo: [DI 7 0, UB 100 0 50]
+    attesa_s: 3
+    atteso:
+      mms: {CTRL/YLTC1.Blk.stVal: false, CTRL/ATCC1.RATInServ.stVal: true}
+      stati_goose: 0

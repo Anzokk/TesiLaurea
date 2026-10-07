@@ -2,8 +2,8 @@
 
 Questo documento spiega **come funziona libiec61850** e **come la usa il nostro
 parser** (`source/parser/parser.c`). Per ogni argomento c'è, a sinistra, cosa
-offre la libreria e, a destra, il codice corrispondente del parser con il
-numero di riga.
+offre la libreria e, a destra, il codice corrispondente del parser (che
+in tutto è di circa 150 righe).
 
 | | |
 |---|---|
@@ -43,8 +43,8 @@ libiec61850 è scritta in C e implementa i protocolli di IEC 61850. Ha una parte
 | Parte della libreria | Header | La usiamo? |
 |---|---|---|
 | Client MMS | `iec61850_client.h` | **sì**: letture dei punti e degli RCB |
-| Ricezione GOOSE | `goose_receiver.h`, `goose_subscriber.h` | **sì**: tutti i GOOSE in rete |
-| Valori MMS | `mms_value.h` (incluso dai precedenti) | **sì**: conversione in JSON |
+| Ricezione GOOSE | `goose_receiver.h`, `goose_subscriber.h` | **sì**: i GOOSE del GoCB dell'IED |
+| Valori MMS | `mms_value.h` (incluso dai precedenti) | **sì**: conversione in JSON (con cJSON) |
 | Server IEC 61850 | `iec61850_server.h` | no (solo l'esempio `server_example_basic_io` per i test) |
 | Pubblicazione GOOSE, Sampled Values, R-GOOSE | `goose_publisher.h`, `sv_*.h` | no |
 
@@ -100,17 +100,16 @@ L'FC è un tipo enumerato (`IEC61850_FC_ST`, `IEC61850_FC_MX`…).
 
 </td><td>
 
-`config_item()`, righe 112-115: si controlla anche la lunghezza.
+Il parser passa l'FC del config così com'è:
 
 ```c
-const char* f = jstr(o, "fc", "MX");
-*fc = strlen(f) == 2
-      ? FunctionalConstraint_fromString(f)
-      : IEC61850_FC_NONE;
+IedConnection_readObject(con, &err, p->string,
+        FunctionalConstraint_fromString(p->valuestring));
 ```
 
-Un FC non valido non viene letto: nell'output compare
-`"config_error": "FC sconosciuto \"STX\""`.
+Un FC sbagliato produce un errore di lettura
+nell'output; il config va quindi scritto con FC di
+due lettere corretti.
 
 </td></tr>
 </table>
@@ -156,21 +155,19 @@ Internamente la libreria avvia un **thread** che riceve le risposte.
 
 </td><td>
 
-`main()`, righe 629-638:
+`main()`:
 
 ```c
 IedConnection con = IedConnection_create();
-IedConnection_connect(con, &err, run.host, run.port);
+IedConnection_connect(con, &err, host, port->valueint);
 if (err != IED_ERROR_OK) {
     /* es. err=5: IED spento o irraggiungibile */
-    IedConnection_destroy(con);
-    GooseReceiver_destroy(grx);
-    ...
-    return 2;               /* exit code 2 */
+    fprintf(stderr, "connessione MMS ... fallita ...");
+    return 1;
 }
 ```
 
-Righe 753-754, alla fine:
+Subito dopo le letture:
 
 ```c
 IedConnection_close(con);
@@ -200,19 +197,21 @@ Regole:
 
 </td><td>
 
-`read_point_json()`, righe 291-304:
+`main()`, un'iterazione per punto del config
+(riferimento → FC):
 
 ```c
-IedClientError err;
-MmsValue* value =
-    IedConnection_readObject(con, &err, ref, fc);
-...
-if (value == NULL || err != IED_ERROR_OK)
-    fprintf(fp, "{\"type\": null, \"value\": null,"
-                " \"error\": %d}", err);
-else
-    fprint_mms_value(fp, value);
-if (value) MmsValue_delete(value);
+MmsValue* v = IedConnection_readObject(con, &err,
+        p->string,
+        FunctionalConstraint_fromString(p->valuestring));
+if (v) {
+    cJSON_AddItemToObject(mms, p->string, mms_json(v));
+    MmsValue_delete(v);
+} else {
+    cJSON_AddNumberToObject(
+        cJSON_AddObjectToObject(mms, p->string),
+        "clientError", err);
+}
 ```
 
 </td></tr>
@@ -224,20 +223,19 @@ if (value) MmsValue_delete(value);
 
 `MmsValue` è un contenitore generico: prima si chiede il **tipo**, poi si
 legge il valore con la funzione giusta. Il parser lo fa in un'unica funzione,
-`fprint_mms_value()` (righe 205-287), usata sia per MMS sia per GOOSE.
+`mms_json()`, usata sia per MMS sia per GOOSE: restituisce il valore come nodo
+cJSON.
 
 | Tipo MMS | Dati IEC 61850 tipici | Funzione della libreria | Output del parser |
 |---|---|---|---|
-| `MMS_BOOLEAN` | SPS.stVal, ACT.general | `MmsValue_getBoolean` | `{"type": "bool", "value": true}` |
-| `MMS_INTEGER` | enumerati: Mod, Beh, Health | `MmsValue_toInt64` | `{"type": "int", "value": 1}` |
-| `MMS_UNSIGNED` | contatori | `MmsValue_toUint32` | `{"type": "uint", "value": 3}` |
-| `MMS_FLOAT` | misure (mag.f) | `MmsValue_toDouble` | `{"type": "float", "value": 0.841471076}` |
-| `MMS_BIT_STRING` 2 bit | **Dbpos** (Pos.stVal) | `Dbpos_fromMmsValue` | `{"type": "dbpos", "value": 2, "label": "on", "bits": "10"}` |
-| `MMS_BIT_STRING` altri | **Quality** (q, 13 bit) | `MmsValue_getBitStringBit` | `{"type": "bitstring", "value": 0, "size": 13, "bits": "0000000000000"}` |
-| `MMS_VISIBLE_STRING` | NamPlt.vendor | `MmsValue_toString` | `{"type": "string", "value": "TMW"}` |
-| `MMS_UTC_TIME` | timestamp (t) | `MmsValue_getUtcTimeInMs` | `{"type": "utc_time", "value": 444958306940}` |
-| `MMS_STRUCTURE` | DO o DA composto | `MmsValue_getElement(v, i)` | `{"type": "struct", "value": [ ... ]}` |
-| `MMS_DATA_ACCESS_ERROR` | (errore, vedi §6) | `MmsValue_getDataAccessError` | `{"type": null, "value": null, "access_error": 10}` |
+| `MMS_BOOLEAN` | SPS.stVal, ACT.general | `MmsValue_getBoolean` | `true` |
+| `MMS_INTEGER` | enumerati: Mod, Beh, Health | `MmsValue_toInt64` | `1` |
+| `MMS_FLOAT` | misure (mag.f) | `MmsValue_toFloat` | `0.841471` |
+| `MMS_BIT_STRING` | **Quality** (q, 13 bit), **Dbpos** (Pos.stVal), Tcmd | `MmsValue_getBitStringBit` | `"0000000000000"` |
+| `MMS_VISIBLE_STRING` | NamPlt.vendor | `MmsValue_toString` | `"TMW"` |
+| `MMS_UTC_TIME` | timestamp (t) | `MmsValue_getUtcTimeInMs` | `444958306940` |
+| `MMS_STRUCTURE` | DO o DA composto | `MmsValue_getElement(v, i)` | `[ ... ]` |
+| `MMS_DATA_ACCESS_ERROR` | (errore, vedi §6) | `MmsValue_getDataAccessError` | `{"accessError": 10}` |
 
 <table>
 <tr><th>Libreria</th><th>parser.c</th></tr>
@@ -247,65 +245,85 @@ Strutture e array contengono altri `MmsValue`, raggiungibili con
 `MmsValue_getElement()`. Questi elementi appartengono alla struttura e
 **non** vanno liberati uno per uno.
 
-Le bit string di 2 bit si interpretano con `Dbpos_fromMmsValue()`:
-0 intermedio, 1 off, 2 on, 3 bad.
-Attenzione: anche **Tcmd** (comando tap, `ATCC.TapChg`) è di 2 bit e
-significa 1 = lower, 2 = higher.
+Le bit string di 2 bit possono essere **Dbpos** (`Pos.stVal`:
+`"01"` off, `"10"` on, `"00"` intermedio, `"11"` bad) oppure **Tcmd**
+(comando tap, `ATCC.TapChg`: `"01"` lower, `"10"` higher). Dal valore non si
+distinguono: il parser scrive solo i bit e l'interpretazione si fa con il
+tipo del DA preso dall'SCL. La libreria offre `Dbpos_fromMmsValue()` se
+servisse in C.
 
 </td><td>
 
-Struttura → lista ricorsiva (righe 210-219):
+`mms_json()`, struttura → array ricorsivo:
 
 ```c
 case MMS_STRUCTURE:
 case MMS_ARRAY: {
-    int n = (int)MmsValue_getArraySize(v);
-    ...
-    for (int i = 0; i < n; i++)
-        fprint_mms_value(fp, MmsValue_getElement(v, i));
+    cJSON* a = cJSON_CreateArray();
+    for (uint32_t i = 0; i < MmsValue_getArraySize(v); i++)
+        cJSON_AddItemToArray(a,
+            mms_json(MmsValue_getElement(v, i)));
+    return a;
+}
 ```
 
-Dbpos (righe 238-251):
+Bit string, bit 0 a sinistra:
 
 ```c
-if (n == 2) {
-    Dbpos d = Dbpos_fromMmsValue(v);
-    fprintf(fp, "{\"type\": \"dbpos\", \"value\": %d,"
-                " \"label\": \"%s\", ", (int)d, dbpos_name(d));
-}
-...
-for (int i = 0; i < n; i++)      /* "bits": bit 0 a sinistra */
-    fputc(MmsValue_getBitStringBit(v, i) ? '1' : '0', fp);
+for (int i = 0; i < n; i++)
+    bits[i] = MmsValue_getBitStringBit(v, i) ? '1' : '0';
+bits[n] = '\0';
+return cJSON_CreateString(bits);
 ```
+
+Float: `cJSON_CreateNumber(MmsValue_toFloat(v))`;
+NaN e infinito sono stampati da cJSON come `null`.
 
 </td></tr>
 </table>
 
+### 5.1 Dal valore al file: scrittura con cJSON
+
+Tutto l'output è **un unico albero cJSON**, costruito durante l'esecuzione e
+stampato alla fine su stdout:
+
+```c
+cJSON* root = cJSON_CreateObject();
+cJSON* mms = cJSON_AddObjectToObject(root, "mms");
+... un nodo per punto ...
+cJSON_AddItemToObject(root, "goose", frames);   /* array dei frame */
+puts(cJSON_Print(root));
+```
+
+Ogni `cJSON_AddItemToObject` / `AddItemToArray` **trasferisce la proprietà**
+del nodo al genitore. Il parser termina subito dopo la stampa e lascia al
+sistema operativo la liberazione della memoria.
+
 ---
 
-## 6. Gli errori: tre livelli
+## 6. Gli errori di lettura
 
-Nel JSON prodotto dal parser un punto può fallire in tre modi diversi:
+Durante la lettura un punto può fallire in due modi diversi:
 
 ```mermaid
 flowchart LR
-    C{"configurazione<br/>valida?"} -- no --> CE["config_error<br/>(non letto)"]
-    C -- sì --> R["readObject"] --> E{"err == OK?"}
-    E -- no --> SE["error<br/>(comunicazione)"]
+    R["readObject"] --> E{"err == OK?"}
+    E -- no --> SE["clientError<br/>(comunicazione)"]
     E -- sì --> T{"tipo del valore"}
-    T -- DATA_ACCESS_ERROR --> AE["access_error<br/>(l'IED rifiuta l'oggetto)"]
+    T -- DATA_ACCESS_ERROR --> AE["accessError<br/>(l'IED rifiuta l'oggetto)"]
     T -- altro --> OK["valore"]
 ```
 
-| Campo nel JSON | Chi lo genera | Codici più comuni |
-|---|---|---|
-| `config_error` | il parser, prima di leggere | `manca "ref"`, `FC sconosciuto "STX"` |
-| `error` (`IedClientError`, da `iec61850_client.h`) | la libreria: la richiesta non è andata a buon fine | **5** IED spento/irraggiungibile, 3 connessione persa, 12 riferimento non valido, 20 timeout |
-| `access_error` (`MmsDataAccessError`, da `mms_value.h`) | l'IED: la richiesta è arrivata ma l'oggetto è rifiutato | **10** oggetto inesistente, **3** accesso negato, 2 temporaneamente non disponibile, 7 tipo incoerente |
+Nell'output l'errore prende il posto del valore.
 
-Casi visti sull'IED di test: `error 5` durante la riconfigurazione,
-`access_error 10` con i riferimenti `BU9020/...` (nome del LD sbagliato),
-`access_error 3` su `LBMULTMS1.TmSrc.stVal`.
+| Forma | Chi lo genera | Codici più comuni |
+|---|---|---|
+| `{"clientError": n}` (`IedClientError`, da `iec61850_client.h`) | la libreria: la richiesta non è andata a buon fine | **5** IED spento/irraggiungibile, 3 connessione persa, 12 riferimento non valido, 20 timeout |
+| `{"accessError": n}` (`MmsDataAccessError`, da `mms_value.h`) | l'IED: la richiesta è arrivata ma l'oggetto è rifiutato | **10** oggetto inesistente, **3** accesso negato, 2 temporaneamente non disponibile, 7 tipo incoerente |
+
+Casi visti sull'IED di test: `clientError 5` durante la riconfigurazione,
+`accessError 10` con i riferimenti `BU9020/...` (nome del LD sbagliato),
+`accessError 3` su `LBMULTMS1.TmSrc.stVal`.
 
 ---
 
@@ -326,7 +344,7 @@ quando cambiano, con un timestamp dell'IED. È più preciso del polling.
 Le API dei report usano due forme diverse di riferimento:
 
 - `IedConnection_readObject` vuole il riferimento **senza** FC
-  (`LLN0.op_urcb01.RptEna` + `IEC61850_FC_RP`);
+  (`LLN0.op_urcb01.RptEna` + `IEC61850_FC_RP`): è la forma usata nel config;
 - `IedConnection_getRCBValues` vuole il riferimento **con** l'FC
   (`LLN0.RP.op_urcb01`).
 
@@ -336,20 +354,15 @@ Oggi il parser **legge solo `RptEna`**; per ricevere i report andrebbero usati
 
 </td><td>
 
-`main()`, righe 707-722: si accettano entrambe le forme togliendo `.RP.`/`.BR.`.
+Un RCB è letto **come un normale punto**: nel config si
+scrive l'attributo completo con FC `RP` (o `BR`).
 
-```c
-snprintf(attr, sizeof(attr), "%s.RptEna", ref);
-char* seg = strstr(attr, ".RP.");
-if (!seg) seg = strstr(attr, ".BR.");
-if (seg) memmove(seg, seg + 3, strlen(seg + 3) + 1);
-MmsValue* v = IedConnection_readObject(con, &err, attr, fc);
-if (v && err == IED_ERROR_OK &&
-    MmsValue_getType(v) == MMS_BOOLEAN)
-    fprintf(fp, "{\"RptEna\": %s}", ...);
+```json
+"XSCT1M01SMNPBMUCM1/LLN0.op_urcb01.RptEna": "RP"
 ```
 
-Risultato sull'IED di test: `{"RptEna": false}` per i tre RCB.
+Risultato sull'IED di test, in `mms`:
+`"…/LLN0.op_urcb01.RptEna": false`.
 
 </td></tr>
 </table>
@@ -375,8 +388,10 @@ La ricezione usa due oggetti:
 
 - **`GooseReceiver`**: apre l'interfaccia di rete e, in un suo **thread**,
   riceve i frame;
-- **`GooseSubscriber`**: riceve i frame di un GoCB (dato il `gocbRef`) oppure,
-  in modo **observer**, di tutti i GoCB; per ogni frame chiama una callback.
+- **`GooseSubscriber`**: riceve i frame di **un** GoCB (dato il `gocbRef` e,
+  se impostato con `setAppId`, l'APPID) e per ognuno chiama una callback. Esiste anche il
+  modo **observer** (`setObserver()`), che riceve tutti i GoCB: non serve per
+  una prova su un solo IED.
 
 <table>
 <tr><th>Libreria</th><th>parser.c</th></tr>
@@ -385,27 +400,28 @@ La ricezione usa due oggetti:
 Creazione:
 
 1. `GooseReceiver_create()` + `setInterfaceId(iface)`
-2. `GooseSubscriber_create(gocbRef, NULL)`
-3. `setObserver()` per ricevere **tutti** i GOOSE
-4. `setListener(callback, parametro)`
-5. `GooseReceiver_addSubscriber()`
+2. `GooseSubscriber_create(gocbRef, NULL)`: con `NULL` la libreria crea il
+   dataset dal primo frame e lo riusa per i successivi
+3. `setListener(callback, parametro)`
+4. `GooseReceiver_addSubscriber()`
+
+I frame con un altro gocbRef sono scartati dalla libreria **prima**
+della decodifica: la callback non li vede.
 
 </td><td>
 
-`goose_setup()`, righe 470-476: un solo subscriber in modo observer.
+`main()`: un subscriber per il GoCB del config;
+il parametro della callback è direttamente l'array
+cJSON dei frame.
 
 ```c
+cJSON* frames = cJSON_CreateArray();
 GooseReceiver rx = GooseReceiver_create();
 GooseReceiver_setInterfaceId(rx, iface);
-static char any[] = "";
-GooseSubscriber s = GooseSubscriber_create(any, NULL);
-GooseSubscriber_setObserver(s);
-GooseSubscriber_setListener(s, goose_listener, cap);
-GooseReceiver_addSubscriber(rx, s);
+GooseSubscriber sub = GooseSubscriber_create(gocbRef, NULL);
+GooseSubscriber_setListener(sub, goose_listener, frames);
+GooseReceiver_addSubscriber(rx, sub);
 ```
-
-I GoCB della configurazione non filtrano la ricezione: servono solo a marcare
-i flussi come attesi (`goose_stream_for()`, riga 362).
 
 </td></tr>
 <tr><td>
@@ -420,19 +436,24 @@ Avvio e arresto:
 
 </td><td>
 
-`main()`, righe 612-621: la ricezione parte **prima** della connessione MMS.
+`main()`: la ricezione parte **prima** della connessione
+MMS; se non parte, il programma termina con exit 1.
 
 ```c
-GooseReceiver_start(grx);
-if (!GooseReceiver_isRunning(grx)) {
-    snprintf(goose_err, ..., "ricezione non avviata su %s: "
-             "servono root o CAP_NET_RAW ...", run.iface);
+GooseReceiver_start(rx);
+if (!GooseReceiver_isRunning(rx)) {
+    fprintf(stderr, "GOOSE non avviato su %s: "
+            "servono root o CAP_NET_RAW\n", iface);
+    return 1;
+}
 ```
 
-Righe 733-742: dopo le letture MMS si attende fino a `goose_time_s`, poi:
+Dopo le letture MMS si ascolta per altri
+`goose_time_s` secondi, poi:
 
 ```c
-GooseReceiver_stop(grx);   /* attende la fine del thread */
+sleep((unsigned)gooseTimeS->valueint);
+GooseReceiver_stop(rx);   /* attende la fine del thread */
 ```
 
 </td></tr>
@@ -442,49 +463,49 @@ Nella callback si leggono i campi del frame:
 
 | Funzione | Campo |
 |---|---|
-| `getGoCbRef`, `getGoId`, `getDataSet` | identità del flusso |
+| `getGoId`, `getDataSet` | identità del flusso |
 | `getStNum`, `getSqNum` | stato e sequenza |
-| `getTimeAllowedToLive` | TTL (ms) |
+| `getTimeAllowedToLive` | TTL (ms), nel JSON `timeAllowedtoLive` |
 | `getTimestamp` | `t`: ultimo cambio di stato (orologio IED) |
-| `getConfRev`, `isTest`, `needsCommission` | configurazione e flag |
-| `isValid` | frame decodificato correttamente |
-| `getDataSetValues` | valori del dataset (`MmsValue`) |
+| `getConfRev`, `isTest`, `needsCommission` | configurazione e flag (`confRev`, `simulation`, `ndsCom`) |
+| `isValid` | `false` se sqNum non cresce con lo stesso stNum, o se il dataset non corrisponde a quello del primo frame |
+| `getDataSetValues` | valori del dataset (`MmsValue`), nel JSON `allData` |
+
+MAC e VLAN sono disponibili solo in modo observer.
 
 La callback gira sul thread del ricevitore: deve essere **breve**. I valori
-del dataset vanno usati **solo dentro la callback**: la libreria riusa lo
-stesso `MmsValue` al frame successivo.
+del dataset vanno usati **solo dentro la callback**: la libreria sovrascrive
+lo stesso `MmsValue` al frame successivo.
 
 </td><td>
 
-`goose_listener()`, righe 390-449:
+`goose_listener()`: tempo di ricezione per primo, poi
+i campi del frame e il dataset, convertito subito con
+la stessa `mms_json()` usata per MMS:
 
 ```c
-double rx = now_epoch_ms();          /* istante di ricezione */
-const char* ref = GooseSubscriber_getGoCbRef(sub);
-int appid = GooseSubscriber_getAppId(sub);
+clock_gettime(CLOCK_REALTIME, &ts);
+cJSON* f = cJSON_CreateObject();
+cJSON_AddNumberToObject(f, "rxMs",
+    ts.tv_sec * 1000.0 + ts.tv_nsec / 1e6);
+cJSON_AddStringToObject(f, "goID",
+    GooseSubscriber_getGoId(sub));
 ...
-f->stNum = GooseSubscriber_getStNum(sub);
-f->sqNum = GooseSubscriber_getSqNum(sub);
-f->ttl   = GooseSubscriber_getTimeAllowedToLive(sub);
-f->t_ms  = GooseSubscriber_getTimestamp(sub);
-f->valid = GooseSubscriber_isValid(sub);
+cJSON_AddItemToObject(f, "allData",
+    mms_json(GooseSubscriber_getDataSetValues(sub)));
+cJSON_AddItemToArray(frames, f);
 ```
 
-I valori vengono **subito convertiti in testo JSON** con la stessa funzione
-usata per MMS:
-
-```c
-FILE* mem = open_memstream(&f->values, &len);
-for (int i = 0; i < f->entries; i++)
-    fprint_mms_value(mem, MmsValue_getElement(values, i));
-```
+Le verifiche (sequenze, TTL, intervalli) sono fatte
+dalla suite Python sui frame salvati.
 
 </td></tr>
 </table>
 
-> **Thread e dati condivisi.** I frame vengono scritti dal thread del
-> ricevitore e letti dal `main` solo dopo `GooseReceiver_stop()`, che aspetta
-> la fine di quel thread: per questo non serve un mutex.
+> **Thread e dati condivisi.** L'array `frames` viene scritto dal
+> thread del ricevitore e letto dal `main` solo dopo `GooseReceiver_stop()`,
+> che aspetta la fine di quel thread (`pthread_join`): per questo non serve
+> un mutex.
 
 ### 8.3 libiec61850 o tshark?
 
@@ -528,7 +549,7 @@ cc -Ilib/libiec61850/include -O2 -g -Wall -Wextra source/parser/parser.c -o bin/
 ```
 
 `-lpthread` serve perché la libreria usa thread (connessione MMS e ricevitore
-GOOSE); `-lcjson` per la lettura della configurazione.
+GOOSE); `-lcjson` per la lettura della configurazione e la scrittura dell'output.
 
 **Ricompilare la libreria**:
 
@@ -552,14 +573,14 @@ make && sudo make install      # header e libreria in .install/
 
 | Sintomo nel JSON o sul terminale | Causa probabile | Cosa controllare |
 |---|---|---|
-| exit code 2, `connessione fallita (err=5)` | IED spento, IP errato, cavo | `ping`, `mms_utility -i` |
-| `access_error: 10` su **tutti** i punti | nome del LD sbagliato | `mms_utility -d`, file SCL |
-| `access_error: 10` su un punto | DO, DA o FC sbagliati | `scl_extract.py` |
-| `access_error: 3` | l'IED nega la lettura | togliere il punto o chiedere al tutor |
+| exit 1, `connessione MMS ... fallita (err=5)` | IED spento, IP errato, cavo | `ping`, `mms_utility -i` |
+| `accessError 10` su **tutti** i punti | nome del LD sbagliato | `mms_utility -d`, file SCL |
+| `accessError 10` su un punto | DO, DA o FC sbagliati | file `.icd`, `mms_utility` |
+| `accessError 3` | l'IED nega la lettura | togliere il punto o chiedere al tutor |
 | valori `0` o stringhe vuote | l'IED non popola il modello | `mms_utility`: se dà lo stesso valore, non è il parser |
-| `RptEna: null` con `access_error: 10` | manca l'indice d'istanza (`op_urcb` invece di `op_urcb01`) | `report_inventario.csv` |
-| exit code 4, `goose.error` valorizzato | manca `sudo` o l'interfaccia è sbagliata | `sudo`, `ip link` |
-| GOOSE atteso con `"frames": 0` | il GoCB non pubblica, APPID diverso, VLAN | `sudo tshark -i <if> -Y goose` |
+| `RptEna` con `accessError 10` | manca l'indice d'istanza (`op_urcb` invece di `op_urcb01`) | file `.icd` |
+| exit 1, `GOOSE non avviato` | manca `sudo` o l'interfaccia è sbagliata | `sudo`, `ip link` |
+| `goose` vuoto | il GoCB non pubblica, gocbRef diverso dal config | `sudo tshark -i <if> -Y goose` |
 
 ---
 

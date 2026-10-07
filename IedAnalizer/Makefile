@@ -1,8 +1,9 @@
 # Makefile - banco di prova IEC 61850 BU9020
 #
 #   make            compila il parser in bin/parser
-#   make check      verifica la sintassi degli script Python
 #   make clean      rimuove i file generati
+#   make test       esegue gli scenari Robot (tests/banco.robot); la prima
+#                   volta crea il venv .venv con robotframework, pyyaml, pyserial
 #
 # Percorso di libiec61850 (include/ e lib/): per default il link simbolico
 # lib/libiec61850; si puo' cambiare con  make IEC61850_DIR=/altro/percorso
@@ -16,20 +17,26 @@ LDFLAGS  += -L$(IEC61850_DIR)/lib
 LDLIBS   += -liec61850 -lcjson -lpthread
 
 BIN := bin/parser
-PY  := $(wildcard source/scl/*.py lib/python/*.py)
 
-.PHONY: all check clean
+VENV := .venv
+
+.PHONY: all clean test
 
 all: $(BIN)
+
+# parser e tshark usano un socket raw: si eseguono come root
+test: $(BIN) $(VENV)/bin/robot
+	sudo $(VENV)/bin/robot -d data/results tests/banco.robot
+
+$(VENV)/bin/robot:
+	python3 -m venv $(VENV)
+	$(VENV)/bin/pip install robotframework pyyaml pyserial
 
 bin/parser: source/parser/parser.c | bin
 	$(CC) $(CPPFLAGS) $(CFLAGS) $< -o $@ $(LDFLAGS) $(LDLIBS)
 
 bin:
 	mkdir -p $@
-
-check:
-	python3 -I -m py_compile $(PY) && echo "sintassi Python OK"
 
 clean:
 	rm -f $(BIN)

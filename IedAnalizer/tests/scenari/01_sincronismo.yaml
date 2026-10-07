@@ -1,0 +1,106 @@
+# Scenario 1 - Controllo di sincronismo (RSYN).
+# Il consenso alla chiusura RSYN1.Rel deve seguire le differenze di
+# tensione, fase e frequenza tra linea e sbarra e l'abilitazione; con
+# grandezze incompatibili una richiesta di chiusura va rifiutata (Refuse).
+#
+# Da completare prima dell'esecuzione:
+# - LD "CTRL" e istanze dei LN: dal CID della BU9020 (demo_old.icd ha solo
+#   il tipo RSYN_COL, con i DO Rel, Refuse, SynExcl, ClcExp);
+# - GoCB Sync_gocb con dataset [RSYN1.Rel.stVal, RSYN1.Rel.q] da configurare;
+# - soglie sull'IED (ipotesi): dU 10 %, dphi 20 gradi, df 0.2 Hz;
+# - comandi ESP32 (sintassi provvisoria, da adattare al firmware):
+#     UL <V> <fase gradi> <Hz>   tensione di linea
+#     UB <V> <fase gradi> <Hz>   tensione di sbarra
+#     DI <n> <0|1>               rele' sull'ingresso digitale n della BU9020
+#   DI 1 = abilitazione sincronismo, DI 2 = richiesta di chiusura.
+nome: Controllo di sincronismo
+gocbRef: CTRL/LLN0$GO$Sync_gocb
+
+rete:
+  goose.gocbRef: CTRL/LLN0$GO$Sync_gocb
+  goose.simulation: false
+  goose.ndsCom: false
+  vlan.priority: 4
+
+punti:
+  CTRL/RSYN1.Rel.stVal: ST              # consenso alla chiusura
+  CTRL/RSYN1.Refuse.stVal: ST           # chiusura rifiutata
+
+passi:
+  - nome: grandezze compatibili, controllo non abilitato
+    stimolo: [UL 100 0 50, UB 100 0 50, DI 1 0, DI 2 0]
+    attesa_s: 3
+    atteso:
+      mms: {CTRL/RSYN1.Rel.stVal: false}
+
+  - nome: abilitazione
+    stimolo: [DI 1 1]
+    attesa_s: 3
+    atteso:
+      mms: {CTRL/RSYN1.Rel.stVal: true}
+      stati_goose: 1
+      sequenza: {0: [true]}
+      latenza_max_ms: 500               # stimolo -> GOOSE: seriale, ESP32 e IED
+
+  - nome: differenza di fase 30 gradi
+    stimolo: [UB 100 30 50]
+    attesa_s: 3
+    atteso:
+      mms: {CTRL/RSYN1.Rel.stVal: false}
+      stati_goose: 1
+      sequenza: {0: [false]}
+      latenza_max_ms: 500
+
+  - nome: richiesta di chiusura fuori sincronismo
+    stimolo: [DI 2 1]
+    attesa_s: 3
+    atteso:
+      mms: {CTRL/RSYN1.Rel.stVal: false, CTRL/RSYN1.Refuse.stVal: true}
+      stati_goose: 0                    # Rel non cambia
+
+  - nome: fine richiesta, rientro in fase
+    stimolo: [DI 2 0, UB 100 0 50]
+    attesa_s: 3
+    atteso:
+      mms: {CTRL/RSYN1.Rel.stVal: true, CTRL/RSYN1.Refuse.stVal: false}
+      sequenza: {0: [true]}
+
+  - nome: differenza di tensione 15 %
+    stimolo: [UB 85 0 50]
+    attesa_s: 3
+    atteso:
+      mms: {CTRL/RSYN1.Rel.stVal: false}
+      stati_goose: 1
+      sequenza: {0: [false]}
+      latenza_max_ms: 500
+
+  - nome: rientro in tensione
+    stimolo: [UB 100 0 50]
+    attesa_s: 3
+    atteso:
+      mms: {CTRL/RSYN1.Rel.stVal: true}
+      sequenza: {0: [true]}
+
+  - nome: differenza di frequenza 0.5 Hz
+    stimolo: [UB 100 0 50.5]
+    attesa_s: 3
+    atteso:
+      mms: {CTRL/RSYN1.Rel.stVal: false}
+      stati_goose: 1
+      sequenza: {0: [false]}
+      latenza_max_ms: 500
+
+  - nome: rientro in frequenza
+    stimolo: [UB 100 0 50]
+    attesa_s: 3
+    atteso:
+      mms: {CTRL/RSYN1.Rel.stVal: true}
+      sequenza: {0: [true]}
+
+  - nome: disabilitazione
+    stimolo: [DI 1 0]
+    attesa_s: 3
+    atteso:
+      mms: {CTRL/RSYN1.Rel.stVal: false}
+      stati_goose: 1
+      sequenza: {0: [false]}

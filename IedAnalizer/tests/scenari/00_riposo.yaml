@@ -1,0 +1,40 @@
+# Scenario 0 - IED a riposo, nessuno stimolo.
+# Verifica la struttura dei GOOSE pubblicati (header, GoCB, ritrasmissioni)
+# e lo stato MMS di base. Eseguibile subito: usa solo dati del file
+# config/scl/demo_old.icd e valori osservati sul banco il 2026-10-05.
+nome: IED a riposo
+gocbRef: XSCT1M01SMNPBMUCM1/LLN0$GO$GseBCU_Op_gocb
+
+rete:                                   # da GSE / GSEControl del file .icd
+  goose.gocbRef: XSCT1M01SMNPBMUCM1/LLN0$GO$GseBCU_Op_gocb   # nessun altro GoCB
+  goose.datSet: XSCT1M01SMNPBMUCM1/LLN0$ds_GseBCU_Op
+  goose.goID: XSCT1M01SMNPBMUCM1/LLN0.GseBCU_Op_gocb
+  goose.appid: 0x0E65
+  eth.dst: "01:0c:cd:01:3d:65"
+  vlan.id: 7
+  vlan.priority: 4
+  goose.confRev: 1
+  goose.simulation: false
+  goose.ndsCom: false
+  goose.timeAllowedtoLive: 4000
+
+punti:
+  XSCT1M01SMNPBMUCM1/LBMULPHD1.PhyHealth.stVal: ST
+  XSCT1M01SMNPBMUCM1/LBMULPHD1.PwrSupAlm.stVal: ST
+  XSCT1M01SMNPBMUCM1/LBMULTMS1.TmSynErr.stVal: ST
+  XSCT1M01SMNPBMUCM1/LPWRCSFXUT1.Op.general: ST
+  XSCT1M01SMNPBMUCM1/LBMUGAPC1.Op.general: ST
+  XSCT1M01SMNPBMUCM1/LLN0.op_urcb01.RptEna: RP
+
+passi:
+  - nome: osservazione a riposo
+    attesa_s: 10                        # 5 ritrasmissioni a 2 s
+    atteso:
+      stati_goose: 0                    # senza stimoli lo stato non cambia
+      mms:
+        XSCT1M01SMNPBMUCM1/LBMULPHD1.PhyHealth.stVal: 2   # Warning (osservato)
+        XSCT1M01SMNPBMUCM1/LBMULPHD1.PwrSupAlm.stVal: false
+        XSCT1M01SMNPBMUCM1/LBMULTMS1.TmSynErr.stVal: true # clock non sincronizzato (osservato)
+        XSCT1M01SMNPBMUCM1/LPWRCSFXUT1.Op.general: false
+        XSCT1M01SMNPBMUCM1/LBMUGAPC1.Op.general: false
+        XSCT1M01SMNPBMUCM1/LLN0.op_urcb01.RptEna: false
