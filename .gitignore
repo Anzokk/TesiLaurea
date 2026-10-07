@@ -16,6 +16,8 @@
 *.synctex(busy)
 *.toc
 *.xdv
+prossimiPassi.txt
+
 
 # --- Python ---
 __pycache__/
